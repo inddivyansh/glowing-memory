@@ -1,0 +1,7 @@
+.env
+.instagram_session.json
+review_queue.csv
+audit_log.csv
+*.log
+__pycache__/
+.venv/

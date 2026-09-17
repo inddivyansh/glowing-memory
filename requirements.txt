@@ -1,0 +1,4 @@
+instagrapi
+ollama
+python-dotenv
+schedule
