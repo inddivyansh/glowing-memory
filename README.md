@@ -98,9 +98,12 @@ Copy-Item .env.example .env
 
 Edit `.env` with your settings:
 ```env
-# Instagram Credentials
+# Instagram Credentials (Option 1: Username & Password)
 INSTAGRAM_USERNAME=your_username
 INSTAGRAM_PASSWORD=your_password
+
+# Instagram Credentials (Option 2: Browser Session ID - recommended if 2FA or bot check is triggered)
+# INSTAGRAM_SESSIONID=your_sessionid_cookie
 
 # Target hashtags (comma-separated, without '#')
 HASHTAGS=indianarmy,indianarmedforces

@@ -52,17 +52,39 @@ def required_env(name: str) -> str:
     return value
 
 
-def login(client: Client, username: str, password: str) -> None:
+def _extract_login_error(client: Client, exc: Exception) -> str:
+    """Extract a friendly explanation from Instagram's response payload when login fails."""
+    raw_text = ""
+    try:
+        if getattr(client, "last_json", None):
+            raw_text = json.dumps(client.last_json)
+        elif getattr(client, "last_response", None) and hasattr(client.last_response, "text"):
+            raw_text = client.last_response.text
+    except Exception:
+        raw_text = ""
+
+    if "Incorrect password" in raw_text or "The password you entered is incorrect" in raw_text:
+        return "Incorrect password. The password provided in .env was rejected by Instagram."
+    if "two_factor" in raw_text or "two_step" in raw_text:
+        return "Two-factor authentication is required for this account."
+    if "checkpoint_required" in raw_text or "challenge_required" in raw_text:
+        return "Instagram challenge/checkpoint required. Log into Instagram in your browser to verify the device."
+    if "feedback_required" in raw_text or "Please wait a few minutes" in raw_text:
+        return "Instagram temporary rate limit/action block. Please wait before attempting to log in again."
+    return str(exc)
+
+
+def login(client: Client, username: str = "", password: str = "", sessionid: str = "") -> None:
     """Reuse a stored session when valid, otherwise log in and save it."""
+    # 1. Try loading existing saved session
     if SESSION_FILE.exists():
-        client.load_settings(SESSION_FILE)
         try:
-            client.login(username, password)
+            client.load_settings(SESSION_FILE)
             client.get_timeline_feed()
             logging.info("Logged in using saved session")
             return
         except Exception as exc:
-            logging.warning("Saved session is unavailable: %s", exc)
+            logging.warning("Saved session is invalid or expired: %s", exc)
             try:
                 old_settings = client.get_settings()
                 client.set_settings({})
@@ -71,7 +93,34 @@ def login(client: Client, username: str, password: str) -> None:
             except Exception:
                 pass
 
-    client.login(username, password)
+    # 2. Login via Session ID if provided (most reliable method to bypass bot checks)
+    if sessionid:
+        logging.info("Logging in using INSTAGRAM_SESSIONID...")
+        try:
+            client.login_by_sessionid(sessionid)
+            client.dump_settings(SESSION_FILE)
+            logging.info("Logged in using session ID and saved session")
+            return
+        except Exception as exc:
+            err = _extract_login_error(client, exc)
+            raise RuntimeError(f"Session ID login failed: {err}") from exc
+
+    # 3. Standard login with CAA and legacy fallback
+    logging.info("Attempting login with username and password...")
+    try:
+        client.login(username, password)
+    except Exception as exc:
+        err = _extract_login_error(client, exc)
+        # If it's explicitly an incorrect password or 2FA, don't retry legacy as it's guaranteed to fail
+        if "Incorrect password" in err or "Two-factor" in err:
+            raise RuntimeError(err) from exc
+        logging.warning("Standard login failed (%s). Retrying with legacy flow...", err)
+        try:
+            client.login_legacy(username, password)
+        except Exception as legacy_exc:
+            legacy_err = _extract_login_error(client, legacy_exc)
+            raise RuntimeError(f"{err} | Legacy fallback failed: {legacy_err}") from exc
+
     client.dump_settings(SESSION_FILE)
     logging.info("Logged in and saved a session")
 
@@ -282,17 +331,20 @@ def schedule_todays_sessions(session_func: Any) -> None:
 def main() -> int:
     load_dotenv(ROOT / ".env")
     configure_logging()
+    sessionid = os.getenv("INSTAGRAM_SESSIONID", "").strip()
+    username = os.getenv("INSTAGRAM_USERNAME", "").strip()
+    password = os.getenv("INSTAGRAM_PASSWORD", "").strip()
     try:
-        username = required_env("INSTAGRAM_USERNAME")
-        password = required_env("INSTAGRAM_PASSWORD")
         hashtags = [tag.strip().lstrip("#") for tag in required_env("HASHTAGS").split(",") if tag.strip()]
+        if not sessionid and (not username or not password):
+            raise RuntimeError("Provide either INSTAGRAM_SESSIONID or both INSTAGRAM_USERNAME and INSTAGRAM_PASSWORD in .env")
     except RuntimeError as exc:
         logging.error("%s", exc)
         return 2
 
     client = Client()
     try:
-        login(client, username, password)
+        login(client, username=username, password=password, sessionid=sessionid)
     except Exception as exc:
         logging.error("Login failed: %s", exc)
         return 1
