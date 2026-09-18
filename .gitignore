@@ -2,6 +2,8 @@
 .instagram_session.json
 .instagram_cookies.json
 review_queue.csv
+negative_posts.csv
+response_log.csv
 audit_log.csv
 *.log
 *.png
