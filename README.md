@@ -1,189 +1,220 @@
-# Indian Army PR Monitor & Automated Fact-Check Bot
+# Indian Army PR Bot 🇮🇳
 
-An automated public relations and factual-accuracy monitoring system for Instagram. The tool tracks designated public hashtags related to the Indian Army, uses a local Large Language Model (via Ollama) to identify checkable factual claims and misinformation, automatically posts official clarification comments, and maintains an audit log of all interactions.
-
----
-
-## What This Project Does
-
-```
-                     +---------------------------------------+
-                     |        Target Instagram Hashtags      |
-                     |  (#indianarmy, #indianarmedforces...) |
-                     +-------------------+-------------------+
-                                         |
-                                         v
-                     +---------------------------------------+
-                     |    Fetch Recent Media & Filter User   |
-                     |   (Follower count, business account)  |
-                     +-------------------+-------------------+
-                                         |
-                                         v
-                     +---------------------------------------+
-                     |    Ollama Local LLM Caption Triage    |
-                     |  - Checkable factual claim detection  |
-                     |  - High confidence verification (>0.7)|
-                     |  - Generates concise official reply   |
-                     +-------------------+-------------------+
-                                         |
-                                         v
-                     +---------------------------------------+
-                     |      Post Comment to Instagram        |
-                     |    `client.media_comment(media_id)`   |
-                     |   Human-like random delay (60-180s)   |
-                     +-------------------+-------------------+
-                                         |
-                                         v
-                     +---------------------------------------+
-                     |    Audit Log Entry (`audit_log.csv`)  |
-                     |  - Media ID, Author, Link, Caption    |
-                     |  - Detected issue & confidence score  |
-                     |  - Comment text & execution status    |
-                     +---------------------------------------+
-```
-
-1. **Hashtag Monitoring**: Continuously or periodically monitors designated hashtags using `instagrapi`.
-2. **Account Profiling & Filtering**: Filters candidate posts based on business account status and follower thresholds to avoid bot traps and target relevant posts.
-3. **Local LLM Analysis (Ollama)**: Evaluates captions using a zero-temperature prompt. Flags fabricated operational claims, false attribution, and altered media claims while bypassing benign opinions or criticism.
-4. **Automated Response**: When a high-confidence factual claim is detected, it generates an official, neutral correction linking to authorized public-information channels and comments directly on the post.
-5. **Anti-Detection Pacing**: Spacings and rate limits (customizable 60–180 second delays) mimic human behavior to prevent Instagram rate-limiting or automated action blocks.
-6. **Immutable Audit Trail**: All evaluated posts, detected issues, confidence ratings, and posted comments are permanently logged to `audit_log.csv` for downstream auditing and oversight.
+An automated, intelligent Instagram monitoring and public relations tool. It monitors hashtags and search keywords for negative or misleading posts concerning the Indian Army, evaluates content sentiment using a local Ollama LLM, generates respectful and patriotic counter-responses in the language of the post, and automatically comments in real-time.
 
 ---
 
-## Setup Guide
+## Key Features
 
-### 1. Prerequisites
-- **Python**: Version 3.10 or newer.
-- **Ollama**: Download and install from [ollama.com](https://ollama.com/).
-- **Ollama Model**: Pull your desired model (e.g. `llama3.2`):
-  ```bash
-  ollama run llama3.2
-  ```
-- **Instagram Account**: Dedicated account credentials for automated PR responses.
+- **Single-Pass Real-Time Workflow (`bot.py`)**:
+  Scans, detects negative sentiment, generates a contextual counter-response, and posts a comment immediately on the spot before moving to the next post.
+- **Ultra-Strict Sentiment Analysis**:
+  Evaluates post captions using a local LLM (Ollama). Even a slight degree of negativity (or presence of anti-army hashtags such as `#indianarmycrimes`, `#armyatrocities`) triggers counter-engagement.
+- **Language-Adaptive Counter-Responses**:
+  Dynamically replies in the language and dialect of the source post (Hindi, Urdu, English, Hinglish, etc.) while upholding a dignified, professional, and patriotic tone.
+- **3-Step Human-Like Login System**:
+  1. **Session Cookie Restore**: Loads `.instagram_cookies.json` to bypass login entirely if a valid session exists.
+  2. **Humanized Typing**: Types username and password character-by-character with randomized human keystroke intervals (0.05s–0.18s).
+  3. **2FA / OTP Challenge Terminal Wait**: Detects two-factor/SMS/email authentication challenges, pauses execution, displays a countdown in your terminal, and lets you enter the code directly in the browser.
+  4. **Interactive Fallback**: Allows manual login in the browser window if Instagram serves unexpected security challenges.
+- **Robust Anti-Detection Engine**:
+  Configured to look like a standard user browser—disables `navigator.webdriver` via CDP, removes automation flags (`--disable-blink-features=AutomationControlled`), uses standard desktop Chrome headers, and automatically dismisses cookie banners and "Save Info" dialogs.
+- **Resilient React Comment Submission**:
+  Engineered specifically for Instagram's dynamic React DOM:
+  - Avoids redundant page reloads if already viewing the post.
+  - Dynamically re-queries elements to eliminate `StaleElementReferenceException`.
+  - Submits comments via keyboard `Enter` (`Keys.RETURN`) and multi-selector "Post" button clicks (`div[@role='button']`, `form//div`, `button[@type='submit']`) with JavaScript fallback.
+  - Verifies comment appearance and detects Instagram restriction banners.
+- **Full Audit Trail**:
+  Maintains detailed logs in `negative_posts.csv`, `response_log.csv`, and `monitor.log`. Allows retrying failed attempts without duplicate entries.
 
-### 2. Environment Setup
+---
 
-#### Option A: Automated Setup (PowerShell on Windows)
-Run the bundled setup script to automatically create the virtual environment and install all dependencies:
-```powershell
-.\setup.ps1
+## Workflow Overview
+
 ```
-Then activate the environment:
-```powershell
-.\.venv\Scripts\Activate.ps1
+[Start bot.py]
+      │
+      ▼
+[3-Step Login: Cookies ➔ Human Typing ➔ OTP Wait ➔ Manual Fallback]
+      │
+      ▼
+[Scan Source Feeds (Negative Hashtags, Keywords, Official Feeds)]
+      │
+      ▼
+[Extract Post Caption & Check Duplicate History]
+      │
+      ▼
+[Ollama Sentiment Check: Is post negative toward Indian Army?]
+      │
+      ├── (NO) ──► Skip & proceed to next post
+      │
+      └── (YES) ──► Generate Contextual Counter-Response
+                          │
+                          ▼
+                    [Post Comment via Resilient Selenium Engine]
+                          │
+                          ▼
+                    [Log Status to negative_posts.csv & response_log.csv]
+                          │
+                          ▼
+                    [Paced Human Delay (e.g. 90s) before next action]
 ```
 
-#### Option B: Manual Setup
-```bash
-# Create and activate virtual environment
+---
+
+## Prerequisites
+
+1. **Python 3.10+**: Ensure Python is installed and added to your `PATH`.
+2. **Google Chrome**: Modern desktop Google Chrome installed.
+3. **Ollama**: Running locally with your chosen model.
+   ```powershell
+   # Install model (run once)
+   ollama pull llama3.2
+   ```
+
+---
+
+## Quick Start
+
+### 1. Setup Virtual Environment & Install Dependencies
+
+```powershell
+# Create virtual environment (if not already created)
 python -m venv .venv
 
-# Windows
-.\.venv\Scripts\activate
+# Activate virtual environment
+.\.venv\Scripts\Activate.ps1
 
-# Linux / macOS
-source .venv/bin/activate
-
-# Install dependencies
+# Install required packages
 pip install -r requirements.txt
 ```
 
-### 3. Configuration
+### 2. Configure Environment
 
-Create your `.env` file by copying the template:
+Copy the template and edit `.env`:
+
 ```powershell
 Copy-Item .env.example .env
+notepad .env
 ```
 
-Edit `.env` with your settings:
+Fill in your Instagram credentials and customize settings:
+
 ```env
-# Instagram Credentials (Option 1: Username & Password)
+# Instagram Credentials
 INSTAGRAM_USERNAME=your_username
 INSTAGRAM_PASSWORD=your_password
 
-# Instagram Credentials (Option 2: Browser Session ID - recommended if 2FA or bot check is triggered)
-# INSTAGRAM_SESSIONID=your_sessionid_cookie
+# Hashtags to monitor (comma-separated, without #)
+POSITIVE_HASHTAGS=indianarmy,indianarmedforces,southerncommand,adgpi,jaihind
+NEGATIVE_HASHTAGS=indianarmycrimes,armyatrocities,kashmirviolence,humanrightsviolation
 
-# Target hashtags (comma-separated, without '#')
-HASHTAGS=indianarmy,indianarmedforces
+# Search keywords to monitor (comma-separated)
+SEARCH_KEYWORDS=indian army fake,army brutality,military torture,false encounter
 
-# Ollama local model
+# Local Ollama model
 OLLAMA_MODEL=llama3.2
 
-# Approved official primary source link for replies
-OFFICIAL_INFORMATION_SOURCE=https://indianarmy.nic.in
+# Bot Parameters
+MAX_POSTS_TO_SCAN_PER_SOURCE=20
+MAX_COMMENTS_PER_SESSION=6
+DELAY_BETWEEN_COMMENTS_SECONDS=90
+MAX_COMMENT_LENGTH=220
+COMMENT_PREFIX=
+DETECTION_STRATEGY=negative_first
+HEADLESS=false
+```
 
-# Safety & Anti-Ban Controls
-MAX_COMMENTS_PER_SESSION=3
-MIN_DELAY_SECONDS=60
-MAX_DELAY_SECONDS=180
-FOLLOWER_THRESHOLD=0
-FOLLOW_BUSINESSES=True
+### 3. Ensure Ollama Is Running
 
-# Mode (True = continuous daily scheduler; False = single execution)
-SCHEDULE_MODE=False
+Make sure Ollama is active on your system:
+```powershell
+ollama list
+```
+
+### 4. Run the Bot
+
+```powershell
+python bot.py
+```
+*Or using the virtual environment directly:*
+```powershell
+.\.venv\Scripts\python.exe bot.py
 ```
 
 ---
 
-## How to Use
+## Configuration Reference
 
-### 1. Single Execution Run
-To run a single monitoring and response session immediately:
-```powershell
-python army_pr_monitor.py
-```
-- Fetches recent posts for configured hashtags.
-- Analyzes candidate captions with Ollama.
-- Posts corrections on detected misinformation.
-- Saves results to `audit_log.csv` and finishes.
-
-### 2. Continuous Scheduled Mode
-To run the monitor continuously with randomized daily sessions during waking hours:
-```powershell
-python army_pr_monitor.py --schedule
-```
-*(Or set `SCHEDULE_MODE=True` in `.env`).*
-
-### 3. Monitoring & Auditing Output
-
-- **Console & File Logs**: Real-time logging is output to the terminal and stored in `monitor.log`.
-- **Audit Records**: Stored in `audit_log.csv` with the following columns:
-  - `media_id`: Instagram media ID.
-  - `username`: Author handle.
-  - `permalink`: Direct URL to the Instagram post.
-  - `caption`: Original post text.
-  - `detected_issue`: Specific factual claim or issue identified by the LLM.
-  - `confidence`: Confidence score (0.0 to 1.0).
-  - `comment_text`: Exact text of the comment posted.
-  - `status`: Execution status (`posted` or `failed: <reason>`).
-  - `collected_at`: UTC timestamp of the action.
+| Environment Variable | Default | Description |
+|---|---|---|
+| `INSTAGRAM_USERNAME` | *(Required)* | Instagram login username / email. |
+| `INSTAGRAM_PASSWORD` | *(Required)* | Instagram login password. |
+| `NEGATIVE_HASHTAGS` | `indianarmycrimes,...` | Anti-army hashtags where all content is critically evaluated. |
+| `POSITIVE_HASHTAGS` | `indianarmy,...` | Official / general military hashtags monitored for trolls or hostile comments. |
+| `SEARCH_KEYWORDS` | `indian army fake,...` | Keywords searched in Instagram explore. |
+| `OLLAMA_MODEL` | `llama3.2` | Ollama model used for detection and response generation. |
+| `DETECTION_STRATEGY` | `negative_first` | `negative_first`: Negative tags first, then keywords, then positive tags.<br>`balanced`: Alternates between sources.<br>`positive_only`: Only scans positive tags for brigading. |
+| `MAX_POSTS_TO_SCAN_PER_SOURCE` | `20` | Maximum posts collected per hashtag/keyword. |
+| `MAX_COMMENTS_PER_SESSION` | `6` | Safety cap on total comments posted during a single run. |
+| `DELAY_BETWEEN_COMMENTS_SECONDS` | `90` | Base wait time between successive comments (randomized ±30%). |
+| `MAX_COMMENT_LENGTH` | `220` | Maximum character limit for generated responses. |
+| `COMMENT_PREFIX` | *(Empty)* | Optional text prefixed to every comment (e.g., `[Official Response]`). |
+| `HEADLESS` | `false` | `false`: Shows Chrome window (recommended for monitoring / OTP).<br>`true`: Runs in background. |
 
 ---
 
-## What Can Be Added (Roadmap & Enhancements)
+## Output Files & Audit Logs
 
-Here are high-value capabilities and features that can be added to extend this project:
+| File | Purpose |
+|---|---|
+| `negative_posts.csv` | Record of all flagged posts: ID, username, permalink, caption snippet, sentiment, and response status (`posted`, `failed`, `skipped`). |
+| `response_log.csv` | Full audit log containing the exact generated response text, post link, timestamp, and status. |
+| `monitor.log` | Complete timestamped console and execution log for debugging. |
+| `.instagram_cookies.json` | Persisted session cookies used for subsequent automatic logins. |
 
-### 1. Multi-Platform Monitoring
-- **X (Twitter)**: Monitor keywords and hashtags using the X API / twikit.
-- **YouTube & Shorts**: Scan comments and video descriptions on military/defense channels.
-- **Reddit**: Monitor subreddits such as `r/IndianDefense` and `r/india` using PRAW.
+---
 
-### 2. Multi-Modal Analysis (Images & Video OCR)
-- Currently, only post captions are analyzed.
-- Add **OCR (Tesseract / EasyOCR)** to extract text embedded in meme images, screenshots of fake tweets, and infographic posters.
-- Add image analysis via vision-capable models (e.g., `llava` or `llama3.2-vision`) to detect altered photos or old recycled combat footage.
+## Viewing Results in PowerShell
 
-### 3. Official Fact-Checking API Integration
-- Connect with verified fact-check repositories (e.g., PIB Fact Check RSS feed, Google Fact Check Tools API) to match claims against known debunked narratives.
+Monitor logs in real-time:
+```powershell
+Get-Content monitor.log -Tail 25 -Wait
+```
 
-### 4. Alert & Notification Webhooks
-- **Discord / Telegram / Slack Webhooks**: Instant notifications sent to communication teams when high-severity misinformation or trending false claims are detected.
+View all flagged posts:
+```powershell
+Import-Csv negative_posts.csv | Format-Table -Property media_id, username, source_tag, response_status
+```
 
-### 5. Proxy Support & Session Rotation
-- Add residential / mobile proxy rotation in `instagrapi` (`client.set_proxy("http://...")`) to ensure long-term account health and prevent IP-based challenge checkpoints.
+View posted comments:
+```powershell
+Import-Csv response_log.csv | Where-Object { $_.status -eq "posted" } | Format-Table -Property permalink, generated_response, responded_at
+```
 
-### 6. Interactive Web Dashboard
-- A Streamlit or Next.js dashboard to view `audit_log.csv`, visualize misinformation trends by hashtag over time, and inspect engagement on posted clarifications.
+---
+
+## Project Structure
+
+```
+PR/
+├── bot.py                  # All-in-one execution script (scan, detect, reply, comment)
+├── shared.py               # Core automation library (Selenium driver, login, commenting, CSV I/O)
+├── .env                    # Active configuration & credentials (gitignored)
+├── .env.example            # Sample configuration template
+├── requirements.txt        # Python package dependencies
+├── negative_posts.csv      # Log of flagged posts (auto-generated)
+├── response_log.csv        # Detailed comment audit history (auto-generated)
+├── monitor.log             # Runtime log file (auto-generated)
+└── .instagram_cookies.json # Saved session cookies (auto-generated)
+```
+
+---
+
+## Safety & Best Practices
+
+1. **Dedicated Account**: Use a dedicated account created for public relations activities.
+2. **Moderate Volume**: Maintain a conservative session comment cap (`MAX_COMMENTS_PER_SESSION=4` to `6`) and realistic delays (`90` to `180` seconds) to avoid platform rate limits.
+3. **Session Re-use**: Do not delete `.instagram_cookies.json` unnecessarily; re-using valid cookies reduces login requests and prevents verification challenges.
+4. **First Run in Visible Mode**: Always run with `HEADLESS=false` initially so you can solve any 2FA or security prompts if presented by Instagram.

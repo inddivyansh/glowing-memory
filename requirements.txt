@@ -1,4 +1,4 @@
-instagrapi
-ollama
-python-dotenv
-schedule
+selenium>=4.15.0
+webdriver-manager>=4.0.0
+ollama>=0.1.0
+python-dotenv>=1.0.0
